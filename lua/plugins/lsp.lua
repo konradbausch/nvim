@@ -17,7 +17,7 @@ return {
 
     -- add language servers here, to have them automatically installed--
     require("mason-lspconfig").setup({
-      ensure_installed = { "pyright", "lua_ls" }
+      ensure_installed = { "pyright", "lua_ls", "gopls" }
     })
 
     local cmp = require("cmp")
@@ -46,6 +46,10 @@ return {
     local lsp_config = require("lspconfig")
 
     lsp_config.pyright.setup({
+      capabilities = capabilities,
+    })
+
+    lsp_config.gopls.setup({
       capabilities = capabilities,
     })
 
