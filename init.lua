@@ -19,8 +19,8 @@ opt.undolevels = 10000
 
 -- Indentation
 opt.expandtab = true
-opt.shiftwidth = 2
-opt.tabstop = 2
+opt.shiftwidth = 4
+opt.tabstop = 4
 opt.smartindent = true
 opt.fixendofline = true
 
@@ -46,9 +46,12 @@ vim.pack.add{
   'https://github.com/nvim-telescope/telescope-fzf-native.nvim',
   'https://github.com/neovim/nvim-lspconfig',
   'https://github.com/Saghen/blink.cmp',
+  'https://github.com/williamboman/mason.nvim',
   'https://github.com/scalameta/nvim-metals',
   'https://github.com/nvim-lua/plenary.nvim',
   'https://github.com/mbbill/undotree',
+  'https://github.com/seblj/roslyn.nvim',
+  'https://github.com/nvim-treesitter/nvim-treesitter',
 }
 
 -------------------------------------------------------------------------------
@@ -57,7 +60,14 @@ vim.pack.add{
 vim.cmd.colorscheme "vscode"
 
 require("ibl").setup()
-require('oil').setup()
+require('oil').setup({
+  columns = {},
+})
+
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = { 'cs', 'python', 'scala', 'lua', 'vim', 'vimdoc' },
+  callback = function() pcall(vim.treesitter.start) end,
+})
 
 local builtin = require('telescope.builtin')
 pcall(require('telescope').load_extension, 'fzf')
@@ -69,10 +79,52 @@ vim.lsp.enable('pyright')
 
 require('blink.cmp').setup({
   fuzzy = { implementation = "lua" },
+  keymap = {
+    preset = 'default',
+    ['<CR>'] = { 'accept', 'fallback' },
+    ['<C-space>'] = { 'accept', 'fallback' },
+    ['<C-e>'] = { 'hide' },
+    ['<C-n>'] = { 'select_next', 'fallback' },
+    ['<C-p>'] = { 'select_prev', 'fallback' },
+    ['<C-d>'] = { 'scroll_documentation_down', 'fallback' },
+    ['<C-u>'] = { 'scroll_documentation_up', 'fallback' },
+  },
 })
 
 vim.lsp.config('*', {
-  capabilities = require('blink.cmp').get_lsp_capabilities()
+  capabilities = require('blink.cmp').get_lsp_capabilities(),
+  on_attach = function(client)
+    -- Disable LSP semantic tokens; treesitter handles highlighting without lag
+    client.server_capabilities.semanticTokensProvider = nil
+  end,
+})
+
+require('mason').setup({
+  registries = {
+    "github:mason-org/mason-registry",
+    "github:Crashdummyy/mason-registry",
+  },
+})
+
+-- OmniSharp (disabled in favour of roslyn)
+-- vim.lsp.config('omnisharp', {})
+-- vim.lsp.enable('omnisharp')
+
+vim.lsp.config("roslyn", {
+  capabilities = require('blink.cmp').get_lsp_capabilities(),
+})
+
+require('roslyn').setup({
+  cmd = {
+    vim.fn.stdpath("data") .. "/mason/bin/roslyn" .. (vim.fn.has("win32") == 1 and ".cmd" or ""),
+  },
+  -- Choose a specific solution to avoid loading all of them in a large repo.
+  -- Uncomment and set the pattern to auto-select:
+  -- choose_target = function(targets)
+  --   return vim.iter(targets):find(function(t) return t:match("YourSolution.sln") end)
+  -- end,
+  lock_target = false,  -- use :Roslyn target to switch between solutions
+  filewatching = "auto",
 })
 
 -- Scala
@@ -117,7 +169,10 @@ key.set('n', '<leader>s', '<CMD>vsplit<CR>', { desc = 'Split window vertically' 
 key.set("n", "<leader>e", "<CMD>Oil<CR>", { desc = "Open parent directory (Oil)" })
 
 -- Telescope
-key.set('n', '<leader>ff', builtin.find_files, { desc = 'Find files' })
+key.set('n', '<leader>ff', function()
+  builtin.git_files({ show_untracked = true })
+end, { desc = 'Find files (respects .gitignore)' })
+key.set('n', '<leader>fF', builtin.find_files, { desc = 'Find all files (ignores .gitignore)' })
 key.set('n', '<leader>fg', builtin.live_grep, { desc = 'Live grep (Search text)' })
 key.set('n', '<leader>fb', builtin.buffers, { desc = 'List open buffers' })
 key.set('n', '<leader>fh', builtin.help_tags, { desc = 'Search help documentation' })
